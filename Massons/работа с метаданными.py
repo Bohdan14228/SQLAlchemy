@@ -1,8 +1,9 @@
-from sqlalchemy import create_engine, MetaData, Table, Integer, String, BigInteger, ForeignKey
-from sqlalchemy.orm import registry, declarative_base, as_declarative, declared_attr, mapped_column, Mapped
+from sqlalchemy import create_engine, MetaData, Table, Integer, String, BigInteger, ForeignKey, select
+from sqlalchemy.orm import registry, declarative_base, as_declarative, declared_attr, mapped_column, Mapped, Session
 
 engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
-# metadata = MetaData()
+metadata = MetaData()
+
 #
 # user_table = Table(
 #     "users",
@@ -33,7 +34,7 @@ engine = create_engine("sqlite+pysqlite:///:memory:", echo=True)
 
 @as_declarative()
 class AbstractModel:
-    id = mapped_column(Integer, autoincrement=True, primary_key=True)
+    id: Mapped[int] = mapped_column(autoincrement=True, primary_key=True)
 
     @classmethod
     @declared_attr
@@ -43,6 +44,7 @@ class AbstractModel:
 
 class UserModel(AbstractModel):
     __tablename__ = 'users'
+    user_id: Mapped[int] = mapped_column(BigInteger)    # BigInteger может хранить в себе больше данных чем Integer
     name: Mapped[str] = mapped_column()
     fullname: Mapped[str] = mapped_column()
 
@@ -50,8 +52,14 @@ class UserModel(AbstractModel):
 class AddressesModel(AbstractModel):
     __tablename__ = 'addresses'
     email = mapped_column(String, nullable=False)
-    user_id = mapped_column(ForeignKey(mapped_column='users.id'))
+    user_id = mapped_column(ForeignKey('users.id'))
 
 
-print(UserModel.__table__.__dict__)
-print(AddressesModel.__table__)
+with Session(engine) as session:
+    with session.begin():
+        AbstractModel.metadata.create_all(engine)
+        user = UserModel(user_id=1, name='Jack', fullname='Jack Cow')
+        session.add(user)
+
+    with session.begin():
+        session.execute(select(UserModel).where(UserModel.user_id == 1))
